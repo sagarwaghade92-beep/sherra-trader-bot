@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827"><link rel="manifest" href="manifest.json">
+<title>SHERRA TRADER BOT</title>
+<style>
+:root{--bg:#0b1220;--panel:#131e30;--muted:#9aabc2;--text:#eef4ff;--green:#21c58b;--red:#ff6375;--gold:#f4bd50}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,Arial}
+header{padding:20px 16px;background:linear-gradient(120deg,#14243b,#101827);border-bottom:1px solid #26364d}
+h1{font-size:22px;margin:0;letter-spacing:1px}header p{margin:5px 0 0;color:var(--muted);font-size:12px}
+main{max-width:760px;margin:auto;padding:14px}.warning{background:#382b14;border:1px solid #73551b;color:#ffdf9a;padding:11px;border-radius:12px;font-size:12px;line-height:1.5;margin-bottom:13px}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.card{background:var(--panel);border:1px solid #26364d;border-radius:14px;padding:14px;margin-bottom:11px}
+.label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}.value{font-size:22px;font-weight:700;margin-top:5px}
+select,button{width:100%;padding:12px;border-radius:10px;border:1px solid #344761;background:#0e1929;color:var(--text);font-size:14px}
+button{background:#1d8d70;border:0;font-weight:700;margin-top:9px}button.secondary{background:#26364d}button.stop{background:#a83e50}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px}
+.status{display:inline-block;padding:5px 9px;border-radius:20px;background:#26364d;color:#cbd8e9;font-size:11px}
+.signal{font-size:18px;font-weight:800}.buy{color:var(--green)}.sell{color:var(--red)}.neutral{color:var(--gold)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:9px 4px;border-bottom:1px solid #29384e;text-align:left}th{color:var(--muted);font-weight:500}
+.small{font-size:12px;color:var(--muted);line-height:1.5}.footer{text-align:center;color:#71839c;font-size:11px;padding:18px}
+</style>
+</head>
+<body>
+<header><h1>⚡ SHERRA TRADER BOT</h1><p>Hindi + English • Paper Trading • Version 1.0</p></header>
+<main>
+<div class="warning"><b>DEMO / PAPER MODE ONLY</b><br>Abhi live market feed ya broker connection connected nahi hai. Screen par dikhne wale prices simulated demo data hain. Real order place nahi hoga.</div>
+<div class="grid">
+ <div class="card"><div class="label">Virtual Capital</div><div class="value" id="capital">₹5,000</div></div>
+ <div class="card"><div class="label">Net P&L</div><div class="value" id="pnl">₹0.00</div></div>
+ <div class="card"><div class="label">Available Balance</div><div class="value" id="balance">₹5,000</div></div>
+ <div class="card"><div class="label">Open Position</div><div class="value" id="position">None</div></div>
+</div>
+<div class="card">
+ <div class="label">Market Setup</div>
+ <div class="row">
+  <select id="market"><option value="BTC/USDT">Delta • BTC/USDT (demo)</option><option value="ETH/USDT">Delta • ETH/USDT (demo)</option><option value="NIFTY">Angel One • NIFTY (demo)</option><option value="BANKNIFTY">Angel One • BANK NIFTY (demo)</option></select>
+  <select id="tf"><option>1m</option><option selected>5m</option><option>15m</option><option>1h</option></select>
+ </div>
+ <div class="row"><button id="start">▶ Start Scanner</button><button class="secondary" id="stop">Stop Scanner</button></div>
+ <p class="small" id="scannerState">Scanner stopped. Scanner start karne par demo candles update hongi.</p>
+</div>
+<div class="card">
+ <div class="label">Market Analysis</div>
+ <div class="value" id="price">—</div>
+ <div class="small" id="change">Demo price</div>
+ <hr style="border:0;border-top:1px solid #29384e;margin:13px 0">
+ <div class="grid">
+  <div><div class="label">EMA 9 / 21 / 50</div><div id="ema" class="value" style="font-size:15px">—</div></div>
+  <div><div class="label">RSI (14)</div><div id="rsi" class="value" style="font-size:15px">—</div></div>
+  <div><div class="label">Trend</div><div id="trend" class="value" style="font-size:15px">—</div></div>
+  <div><div class="label">Signal</div><div id="signal" class="signal neutral">WAIT</div></div>
+ </div>
+ <p class="small" id="reason">Start scanner to calculate demo indicators.</p>
+</div>
+<div class="card">
+ <div class="label">Paper Trade Controls</div>
+ <div class="row"><button id="buy">Buy (Demo)</button><button id="sell" class="stop">Sell / Close (Demo)</button></div>
+ <p class="small">Risk limit: ₹50 per trade (1% of starting capital). Demo quantity is sized from simulated stop distance. Trades are educational simulations only.</p>
+</div>
+<div class="card">
+ <div class="label">Trade History</div>
+ <table><thead><tr><th>Instrument</th><th>Side</th><th>Entry</th><th>P&L</th></tr></thead><tbody id="history"><tr><td colspan="4">No trades yet</td></tr></tbody></table>
+</div>
+<div class="footer">SHERRA TRADER BOT • V1.0 • Demo simulator — not investment advice</div>
+</main>
+<script>
+let running=false,timer=null,capital=5000,balance=5000,position=null,history=[],prices=[],price=0,signal="WAIT";
+const $=id=>document.getElementById(id), fmt=n=>"₹"+Number(n).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+function seed(){let p= $('market').value==="BTC/USDT"?65000:$('market').value==="ETH/USDT"?3200:$('market').value==="NIFTY"?24500:52000;prices=[];for(let i=0;i<70;i++){p*=1+(Math.random()-.49)*.002;prices.push(p)}price=p}
+function ema(arr,period){let k=2/(period+1),v=arr[0];for(let i=1;i<arr.length;i++)v=arr[i]*k+v*(1-k);return v}
+function rsi(arr){let gains=0,loss=0;for(let i=arr.length-14;i<arr.length-1;i++){let d=arr[i+1]-arr[i];if(d>0)gains+=d;else loss-=d}let rs=gains/(loss||.000001);return 100-100/(1+rs)}
+function analyze(){
+ let e9=ema(prices.slice(-35),9),e21=ema(prices.slice(-50),21),e50=ema(prices,50),r=rsi(prices);
+ let bullish=e9>e21&&e21>e50&&r>50&&r<72,bearish=e9<e21&&e21<e50&&r<50&&r>28;
+ signal=bullish?"BUY":bearish?"SELL":"WAIT";
+ $("price").textContent=fmt(price);$("ema").textContent=[e9,e21,e50].map(x=>x.toFixed(2)).join(" / ");$("rsi").textContent=r.toFixed(1);
+ $("trend").textContent=e9>e50?"Bullish":e9<e50?"Bearish":"Sideways";
+ $("signal").textContent=signal;$("signal").className="signal "+(signal==="BUY"?"buy":signal==="SELL"?"sell":"neutral");
+ $("reason").textContent=bullish?"EMA alignment + RSI confirmation: demo BUY setup.":bearish?"EMA bearish alignment + RSI confirmation: demo SELL setup.":"Conditions not aligned. Wait for confirmation.";
+ $("change").textContent="Last demo update • "+new Date().toLocaleTimeString();
+}
+function update(){let drift=(Math.random()-.5)*.003;price*=1+drift;prices.push(price);if(prices.length>100)prices.shift();analyze();if(position){let diff=(price-position.entry)*(position.side==="BUY"?1:-1)*position.qty;let stopHit=(position.side==="BUY"&&price<=position.sl)||(position.side==="SELL"&&price>=position.sl);let targetHit=(position.side==="BUY"&&price>=position.tp)||(position.side==="SELL"&&price<=position.tp);if(stopHit||targetHit)closeTrade(stopHit?"Stop Loss":"Target")}}
+function render(){ $("capital").textContent=fmt(capital);$("balance").textContent=fmt(balance);let total=history.reduce((a,t)=>a+t.pnl,0)+(position?(price-position.entry)*(position.side==="BUY"?1:-1)*position.qty:0);$("pnl").textContent=fmt(total);$("pnl").style.color=total>=0?"#21c58b":"#ff6375";$("position").textContent=position?position.side+" @ "+fmt(position.entry):"None";$("history").innerHTML=history.length?history.slice().reverse().map(t=>`<tr><td>${t.market}</td><td>${t.side}</td><td>${fmt(t.entry)}</td><td style="color:${t.pnl>=0?'#21c58b':'#ff6375'}">${fmt(t.pnl)}</td></tr>`).join(""):'<tr><td colspan="4">No trades yet</td></tr>'}
+function openTrade(side){if(position){alert("Ek position pehle se open hai.");return}if(!running){alert("Pehle Start Scanner dabao.");return}let risk=50,dist=price*.002,qty=risk/dist;position={market:$("market").value,side,entry:price,qty,sl:price+(side==="BUY"?-dist:dist),tp:price+(side==="BUY"?dist*2:-dist*2)};render()}
+function closeTrade(reason){if(!position)return;let pnl=(price-position.entry)*(position.side==="BUY"?1:-1)*position.qty;balance+=pnl;history.push({...position,pnl,reason});position=null;render()}
+$("start").onclick=()=>{if(running)return;running=true;seed();analyze();$("scannerState").textContent="Scanner running • Demo data only";timer=setInterval(()=>{update();render()},1800);};
+$("stop").onclick=()=>{running=false;clearInterval(timer);$("scannerState").textContent="Scanner stopped.";};
+$("buy").onclick=()=>openTrade("BUY");$("sell").onclick=()=>position?closeTrade("Manual close"):alert("No open position.");
+$("market").onchange=()=>{seed();analyze();};render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body></html>
